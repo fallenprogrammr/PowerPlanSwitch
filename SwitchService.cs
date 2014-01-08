@@ -1,19 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Diagnostics;
-using System.Linq;
 using System.ServiceProcess;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace PowerPlanSwitch
 {
     public partial class SwitchService : ServiceBase
     {
-
         public SwitchService()
         {
             InitializeComponent();
@@ -26,7 +18,7 @@ namespace PowerPlanSwitch
                     SetPowerPlanSettingOnSystemByConnectedPowerStatus();
                     break;
                 case PowerBroadcastStatus.BatteryLow:
-                    SetPowerPlanSettingOnSystemTo(MaxBatterySaving);
+                    PowerPlanSwitchHelper.SetActivePowerPlan(new Guid(PowerPlans.PowerSaver));;
                     break;
                 default:
                     base.OnPowerEvent(powerStatus);
@@ -35,25 +27,20 @@ namespace PowerPlanSwitch
             return true;
         }
 
-        private void SetPowerPlanSettingOnSystemByConnectedPowerStatus()
+        private static void SetPowerPlanSettingOnSystemByConnectedPowerStatus()
         {
             switch(SystemInformation.PowerStatus.PowerLineStatus)
             {
                 case PowerLineStatus.Online:
-                    SetPowerPlanSettingOnSystemTo(MaxPerformance);
+                    PowerPlanSwitchHelper.SetActivePowerPlan(new Guid(PowerPlans.HighPerformance));
                     break;
                 case PowerLineStatus.Offline:
-                    SetPowerPlanSettingOnSystemTo(Balanced);
+                    PowerPlanSwitchHelper.SetActivePowerPlan(new Guid(PowerPlans.Balanced));
                     break;
                 default:
-                    SetPowerPlanSettingOnSystemTo(Balanced);
+                    PowerPlanSwitchHelper.SetActivePowerPlan(new Guid(PowerPlans.Balanced));
                     break;
             }
-        }
-
-        private void SetPowerPlanSettingOnSystemTo(string powerPlanSetting)
-        {
-            throw new NotImplementedException();
         }
     }
 }

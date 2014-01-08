@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -9,43 +7,51 @@ namespace PowerPlanSwitch
     public static class PowerPlanSwitchHelper
     {
         [DllImportAttribute("powrprof.dll", EntryPoint = "PowerSetActiveScheme")]
-        public static extern uint PowerSetActiveScheme(IntPtr UserPowerKey, ref Guid ActivePolicyGuid);
+        static extern uint PowerSetActiveScheme(IntPtr userPowerKey, ref Guid activePolicyGuid);
 
         [DllImportAttribute("powrprof.dll", EntryPoint = "PowerGetActiveScheme")]
-        public static extern uint PowerGetActiveScheme(IntPtr UserPowerKey, out IntPtr ActivePolicyGuid);
+        static extern uint PowerGetActiveScheme(IntPtr userPowerKey, out IntPtr activePolicyGuid);
 
-        [DllImportAttribute("powrprof.dll", EntryPoint = "PowerReadFriendlyName")]
-        public static extern uint PowerReadFriendlyName(IntPtr RootPowerKey, ref Guid SchemeGuid, IntPtr SubGroupOfPowerSettingsGuid, IntPtr PowerSettingGuid, IntPtr Buffer, ref uint BufferSize);
-
-        private static Dictionary<string, string> powerPlans;
-        
-        private static PowerPlanSwitchHelper()
-        {
-            powerPlans=new Dictionary<string,string>();
-            powerPlans.Add("MAX_BATTERY","a1841308-3541-4fab-bc81-f71556f20b4a");
-            powerPlans.Add("MAX_PERFORMANCE","8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
-            powerPlans.Add("BALANCED","381b4222-f694-41f0-9685-ff5bb260df2e");
-        }
-
+        [DllImport("powrprof.dll", CharSet = CharSet.Unicode)]
+        static extern uint PowerReadFriendlyName(IntPtr rootPowerKey,ref Guid schemeGuid,IntPtr subGroupOfPowerSettingGuid,IntPtr powerSettingGuid,StringBuilder buffer,ref uint bufferSize);
 
         private static string GetPowerPlanName(Guid guid)
         {
-            string name = string.Empty;
-            IntPtr lpszName = (IntPtr)null;
-            uint dwSize = 0;
-
-            PowerReadFriendlyName((IntPtr)null, ref guid, (IntPtr)null, (IntPtr)null, lpszName, ref dwSize);
-            if (dwSize > 0)
+            var buffer = new StringBuilder();
+            uint bufferSize = 0;
+            const uint bufferSizeTooSmall = 234;
+            var response = PowerReadFriendlyName(IntPtr.Zero, ref guid, IntPtr.Zero, IntPtr.Zero, buffer, ref bufferSize);
+            if (response == bufferSizeTooSmall)
             {
-                lpszName = Marshal.AllocHGlobal((int)dwSize);
-                if (0 == PowerReadFriendlyName((IntPtr)null, ref guid, (IntPtr)null, (IntPtr)null, lpszName, ref dwSize))
-                {
-                    name = Marshal.PtrToStringUni(lpszName);
-                }
-                if (lpszName != IntPtr.Zero)
-                    Marshal.FreeHGlobal(lpszName);
+                buffer.Capacity = (int)bufferSize;
+                response = PowerReadFriendlyName(IntPtr.Zero, ref guid,IntPtr.Zero, IntPtr.Zero, buffer, ref bufferSize);
             }
-            return name;
+            if (response != 0) //the api call returns 0 on success.
+            {
+                throw new Exception("Could not get the name of the power plan: " + guid + " , the win32 api call failed.");
+            }
+            return buffer.ToString();
+        }
+
+        private static string GetActivePowerPlan()
+        {
+            Guid activeScheme;
+            IntPtr ptr;
+            if (PowerGetActiveScheme((IntPtr)null, out ptr) == 0)
+            {
+                activeScheme = (Guid)Marshal.PtrToStructure(ptr, typeof(Guid));
+                Marshal.FreeHGlobal(ptr);
+            }
+            else
+            {
+                throw new Exception("Could not retrieve the active power plan, the win32 api call failed.");
+            }
+            return GetPowerPlanName(activeScheme);
+        }
+
+        public static void SetActivePowerPlan(Guid planId)
+        {
+            PowerSetActiveScheme(IntPtr.Zero, ref planId);
         }
     }
 }
